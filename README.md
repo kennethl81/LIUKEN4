@@ -5,7 +5,7 @@ Installation
 ===================================================
 This script was built using python v3.6.3
 
-Thos script relies on the following additional modules installed via pip3 Please install these modules prior to running!:
+This script relies on the following additional modules installed via pip3 Please install these modules prior to running!:
                         
                         requests
                         urllib
