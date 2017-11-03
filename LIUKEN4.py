@@ -3,23 +3,24 @@ import requests
 import urllib
 import urllib3.request
 import re
+
 # used for loading CSV into Pandas
 import pandas
 import logging
 import sys
-import numpy
 import time
-import lxml
 
 from bs4 import BeautifulSoup
 
 # for bokeh
-import bokeh
 from bokeh.plotting import figure, show
 from bokeh.models import HoverTool
-from bokeh.models import ColumnDataSource
+from bokeh.layouts import column
 
 from io import StringIO
+
+logging.propagate = False
+logging.getLogger().setLevel(logging.ERROR)
 
 
 class TestMethods(unittest.TestCase):
@@ -60,9 +61,6 @@ class TestMethods(unittest.TestCase):
 
 # main function for execution
 # prevents the warnings from flooding the console from pdfminer from improperly formatted PDFs
-logging.propagate = False
-logging.getLogger().setLevel(logging.ERROR)
-
 
 def main(argsv):
 
@@ -70,8 +68,8 @@ def main(argsv):
 
     count = 1
     while exec is False:
-        print("Retrying...(try #:" + str(count))
-        run_code()
+        print("Retrying...(try #:" + str(count) + ")")
+        exec = run_code()
 
         time.sleep(3)
         count += 1
@@ -95,7 +93,7 @@ def run_code():
             historical_data_url = format_crumb_and_cookie_url(historical_data_url, crumb, cookie_value)
             dividend_data_url = format_crumb_and_cookie_url(dividend_data_url, crumb, cookie_value)
 
-            # print("Historical Data:" + historical_data_url)
+            #print("Historical Data:" + historical_data_url)
             # print("Dividend Data: " + dividend_data_url)
 
             historical_data = get_finance_yahoo(historical_data_url)
@@ -122,7 +120,7 @@ def run_code():
                     print("Unable to create a combined data frame. There might be a problem with one or both CSV inputs.")
         else:
             print("There was a problem downloading the data from finance.yahoo. The script will try again. This issue "
-                  "is usually caused by an issue between the client and server.")
+                  "is usually caused by a network issue between the client and server.")
             return False
 
 
@@ -171,12 +169,33 @@ def generate_bokeh_chart(pandas_data_frame):
     #plot.multi_line(xs=[pandas_data_frame['Date'].values], ys=pandas_data_frame.Close.values)
     pandas_data_frame['Date'] = pandas.to_datetime(pandas_data_frame['Date'])
 
-    p = figure(width=500, height=500, x_axis_type="datetime")
+    p = figure(width=500, height=500, x_axis_type="datetime", title="Expedia Stock")
 
-    p.multi_line([pandas_data_frame["Date"].tolist(), pandas_data_frame["Date"].tolist(), pandas_data_frame["Date"].tolist(), pandas_data_frame["Date"].tolist()],
-                 [pandas_data_frame["Close"].tolist(), pandas_data_frame["Open"].tolist(), pandas_data_frame["Calls Strike"].tolist(), pandas_data_frame["Puts Strike"].tolist()],
-                 color=["firebrick", "navy", "green", "blue", "magenta"], alpha=[0.8, 0.3], line_width=4)
+    p.multi_line([
+                  pandas_data_frame["Date"].tolist(),
+                  pandas_data_frame["Date"].tolist()
+                  #pandas_data_frame["Date"].tolist(),
+                  #pandas_data_frame["Date"].tolist()
+                ],
+                     [
+                      pandas_data_frame["Open"].tolist(),
+                      pandas_data_frame["Close"].tolist()
+                      #pandas_data_frame["Calls Strike"].tolist(),
+                      #pandas_data_frame["Puts Strike"].tolist()
+                      ],
+                 color=["firebrick", "navy", "green", "blue", "magenta"], line_width=1)
 
+    #p2 = figure(width=500, height=500, x_axis_type="datetime", title="Expedia Stock Options")
+    p.circle([
+                  pandas_data_frame["Date"].tolist(),
+                  pandas_data_frame["Date"].tolist(),
+                ],
+                     [
+                     pandas_data_frame["Calls Strike"].tolist(),
+                     pandas_data_frame["Puts Strike"].tolist()],
+                    fill_color="red", size=8)
+
+    #show(column(p, p2))
     show(p)
 
 def format_crumb_and_cookie_url(url, crumb, cookie):
