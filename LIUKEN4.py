@@ -6,7 +6,6 @@ import re
 
 # used for loading CSV into Pandas
 import pandas
-import sys
 import time
 
 from bs4 import BeautifulSoup
@@ -16,7 +15,7 @@ from bokeh.plotting import figure, show
 from bokeh.models import HoverTool
 from bokeh.models import ColumnDataSource
 from io import StringIO
-from datetime import datetime
+from datetime import datetime, timedelta
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning) #urllib3 keeps warning about not using a certificate
 
@@ -35,24 +34,26 @@ class TestMethods(unittest.TestCase):
     # if __name__ == '__main__':
     # unittest.main()
 
-def main(argsv):
+def main(num, stock_symbol):
 
-    exec = run_code()
+    exec = run_code(num, stock_symbol)
 
     count = 1
     while exec is False:
         print("Retrying...(try #:" + str(count) + ")")
-        exec = run_code()
+        exec = run_code(num, stock_symbol)
 
         time.sleep(3)
         count += 1
 
-def run_code():
+#runs code for the script
+def run_code(num, stock_symbol):
+
     # these are the download links for the different files
-    historical_data_url = "https://query1.finance.yahoo.com/v7/finance/download/EXPE?period1=1478116367&period2=1509652367&interval=1d&events=history&crumb={0}&cookie={1}"
-    dividend_data_url = "https://query1.finance.yahoo.com/v7/finance/download/EXPE?period1=1478116367&period2=1509652367&interval=1d&events=div&crumb={0}&cookie={1}"
-    options_url = "https://finance.yahoo.com/quote/EXPE/options?p=EXPE"
-    crumb_value = "584ln80SGN5"  # this is the crumb value that must be used for valid http requests.
+    historical_data_url = "https://query1.finance.yahoo.com/v7/finance/download/" + stock_symbol + "?period1=" + get_current_num_secs_period1(num) + "&period2=" + get_current_num_secs_period2() + "&interval=1d&events=history&crumb={0}&cookie={1}"
+    dividend_data_url = "https://query1.finance.yahoo.com/v7/finance/download/" + stock_symbol + "?period1=" + get_current_num_secs_period1(num) +"&period2=" + get_current_num_secs_period2() + "&interval=1d&events=div&crumb={0}&cookie={1}"
+    options_url = "https://finance.yahoo.com/quote/"+ stock_symbol + "/options?p=" + stock_symbol
+    crumb_value = "584ln80SGN5"  # this is the crumb value that must be used for valid http requests. if the requests don't work this would probably be the cause (cookie as well)
 
     # get the CSV files
     if historical_data_url is not None and dividend_data_url is not None:
@@ -84,27 +85,47 @@ def run_code():
                     combined_data_frames = combine_pandas_dataframes(combined_data_frames, options[1][0])  # combine put options
                     if combined_data_frames is not None:
                         print("Data frames combined")
-                        generate_bokeh_chart(combined_data_frames)
+                        generate_bokeh_chart(stock_symbol, combined_data_frames)
+
+                        print("Bokeh Chart is displayed in Browser")
                         return True
                 else:
                     print("Unable to create a combined data frame. There might be a problem with one or both CSV inputs.")
+            else:
+                    print("There was a problem encountered trying to collect data. Please check to see if you entered a valid stock symbol.")
         else:
             print("There was a problem downloading the data from finance.yahoo. The script will try again. This issue "
                   "is usually caused by a network issue between the client and server.")
             return False
 
 
+#finance.yahoo does this interesting thing where they base the period1 and period2 times on seconds from 1970
+#getting the period1 parameter value for the url
+def get_current_num_secs_period1(num_days):
+    now = datetime.now()
+    #subtract from 1969 to get seconds
+    last_year = now - timedelta(days=num_days)
+    past_1970 = datetime.strptime('1970-01-01 00:00:00', '%Y-%m-%d %H:%M:%S')
+
+    return str(int((last_year - past_1970).total_seconds()))
+
+#we can try to query the latest data by getting the number of seconds from 1969
+#getting the period2 parameter value for the url
+def get_current_num_secs_period2():
+
+    now = datetime.now()
+    # datetime from 1969-01-01
+    past = datetime.strptime('1970-01-01 00:00:00', '%Y-%m-%d %H:%M:%S')
+    return str(int((now - past).total_seconds()))
+
+
+#gets CSV data from a url
 def get_finance_yahoo(url):
     # make a request and get a file
     file = requests.post(url)
-    # decode_file = file.content.decode('utf-8')
-    # read_file = csv.reader(decode_file)
-
-    # for dat in read_file:
-    # print(dat)
-
     return file.content
 
+#gets options data
 def get_finance_yahoo_options(url):
 
     page = urllib.request.urlopen(url)
@@ -124,7 +145,8 @@ def get_finance_yahoo_options(url):
 
     return (calls, puts)
 
-def generate_bokeh_chart(pandas_data_frame):
+#generate a bokeh chart
+def generate_bokeh_chart(stock_symbol, pandas_data_frame):
 
     pandas_data_frame['Date'] = pandas.to_datetime(pandas_data_frame['Date'])
     #Bokeh has trouble converting datetime to a format usable by the tool tip so we have to convert it to a simpler date
@@ -161,11 +183,11 @@ def generate_bokeh_chart(pandas_data_frame):
         ]
     )
 
-    p = figure(width=800, height=800,  x_axis_type="datetime", title="Expedia Stock", tools=["pan,wheel_zoom,box_zoom,reset", hover], toolbar_location="above")
+    p = figure(width=800, height=800,  x_axis_type="datetime", title=stock_symbol + " - Stock Price", tools=["pan,wheel_zoom,box_zoom,reset", hover], toolbar_location="above")
 
     #label axis
     p.xaxis.axis_label = 'Date'
-    p.yaxis.axis_label = 'Price'
+    p.yaxis.axis_label = 'Price (USD)'
 
     #draw open and close prices
     p.line('Date', 'Open', source=open_price_source, color="green", line_width=2, legend="Open Price")
@@ -178,10 +200,13 @@ def generate_bokeh_chart(pandas_data_frame):
              alpha=0.5, legend="Puts Strike Price")
     show(p)
 
+
+#helps to format the URL with crumb and cookie value
 def format_crumb_and_cookie_url(url, crumb, cookie):
     return url.format(crumb, cookie)
 
 
+#retrieves the cookie for making requests
 def get_finance_yahoo_cookie():
     # use urllib to get set-cookie value
     # use the finance.yahoo.com web page to scrape
@@ -202,17 +227,15 @@ def get_finance_yahoo_cookie():
         return cookie_value
 
 
+#reads a csv and converts it to a pandas data frame
 def create_pandas_dataframe_from_csv(data):
     if data is not None:
         return pandas.read_csv(StringIO(data.decode('utf-8')))
 
-
+#merges data frames
 def combine_pandas_dataframes(df1, df2):
     # how is the type of join (like in SQL)
     # on is what the primary key to use (like in SQL)
     # Date looks like the primary key between the two data frames
-    return pandas.merge(df1, df2, how="outer", on="Date")
-
-
-if __name__ == "__main__":
-    main(sys.argv)
+    if df1 is not None and df2 is not None:
+        return pandas.merge(df1, df2, how="outer", on="Date")
