@@ -20,8 +20,8 @@ This script was designed to be run in Jupyter Notebook or a python compatible ID
 Load LIUKEN4.ipynb to execute the script
 -or-
 use this command:
-        import LIUKEN4
 
+        import LIUKEN4
         #firstParam= number of days from today's date, secondParam= stock symbol
         LIUKEN4.main(60, "EXPE")
 
