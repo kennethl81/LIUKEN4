@@ -17,6 +17,8 @@ How to Use
 ===================================================
 This script was designed to be run in Jupyter Notebook or a python compatible IDE
 
+Load LIUKEN4.ipynb to execute the script
+
 About the Script
 ===================================================
 This script works by making requests to finance.yahoo for a given stock symbol.
