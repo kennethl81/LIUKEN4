@@ -239,3 +239,6 @@ def combine_pandas_dataframes(df1, df2):
     # Date looks like the primary key between the two data frames
     if df1 is not None and df2 is not None:
         return pandas.merge(df1, df2, how="outer", on="Date")
+
+#if __name__ == '__main__':
+     #main(60, "EXPE")
