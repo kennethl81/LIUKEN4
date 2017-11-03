@@ -6,7 +6,6 @@ import re
 
 # used for loading CSV into Pandas
 import pandas
-import logging
 import sys
 import time
 
@@ -15,8 +14,6 @@ from bs4 import BeautifulSoup
 # for bokeh
 from bokeh.plotting import figure, show
 from bokeh.models import HoverTool
-from bokeh.layouts import column
-from bokeh.transform import jitter
 from bokeh.models import ColumnDataSource
 from io import StringIO
 from datetime import datetime
@@ -37,31 +34,6 @@ class TestMethods(unittest.TestCase):
 
     # if __name__ == '__main__':
     # unittest.main()
-
-
-# url = 'https://uk.finance.yahoo.com/quote/AAPL/history'  # url for a ticker symbol, with a download link
-# r = requests.get(url)  # download page
-
-# txt = r.text  # extract html
-
-# cookie = r.cookies['B']  # the cooke we're looking for is named 'B'
-# print('Cookie: ', cookie)
-
-# Now we need to extract the token from html.
-# the string we need looks like this: "CrumbStore":{"crumb":"lQHxbbYOBCq"}
-# regular expressions will do the trick!
-
-# pattern = re.compile('.*"CrumbStore":\{"crumb":"(?P<crumb>[^"]+)"\}')
-
-# for line in txt.splitlines():
-#    m = pattern.match(line)
-#    if m is not None:
-#        crumb = m.groupdict()['crumb']
-
-# print('Crumb=', crumb)
-
-# main function for execution
-# prevents the warnings from flooding the console from pdfminer from improperly formatted PDFs
 
 def main(argsv):
 
@@ -93,9 +65,6 @@ def run_code():
 
             historical_data_url = format_crumb_and_cookie_url(historical_data_url, crumb, cookie_value)
             dividend_data_url = format_crumb_and_cookie_url(dividend_data_url, crumb, cookie_value)
-
-            #print("Historical Data:" + historical_data_url)
-            # print("Dividend Data: " + dividend_data_url)
 
             historical_data = get_finance_yahoo(historical_data_url)
             dividend_data = get_finance_yahoo(dividend_data_url)
@@ -141,9 +110,6 @@ def get_finance_yahoo_options(url):
     page = urllib.request.urlopen(url)
     soup = BeautifulSoup(page, 'html.parser')
 
-    calls = ""
-    puts = ""
-
     #get calls table and convert it to a dataframe
     calls_table = soup.findAll('table', attrs={'class': 'calls table-bordered W(100%) Pos(r) Bd(0) Pt(0) list-options'})
     calls_table = str.replace(str(calls_table), 'Last Trade Date', 'Date')
@@ -160,9 +126,9 @@ def get_finance_yahoo_options(url):
 
 def generate_bokeh_chart(pandas_data_frame):
 
-    numlines = len(pandas_data_frame.columns)
-
     pandas_data_frame['Date'] = pandas.to_datetime(pandas_data_frame['Date'])
+    #Bokeh has trouble converting datetime to a format usable by the tool tip so we have to convert it to a simpler date
+    #format and define an additional new column and pass it as a source= value to make it work
     dates = [str(datetime.strptime(str(i), "%Y-%m-%d %H:%M:%S").date()) for i in pandas_data_frame['Date']]
 
     open_price_source = ColumnDataSource(data={
@@ -197,15 +163,15 @@ def generate_bokeh_chart(pandas_data_frame):
 
     p = figure(width=800, height=800,  x_axis_type="datetime", title="Expedia Stock", tools=["pan,wheel_zoom,box_zoom,reset", hover], toolbar_location="above")
 
+    #label axis
     p.xaxis.axis_label = 'Date'
     p.yaxis.axis_label = 'Price'
 
+    #draw open and close prices
     p.line('Date', 'Open', source=open_price_source, color="green", line_width=2, legend="Open Price")
     p.line('Date', 'Close', source=close_price_source, color="blue", line_width=2, legend="Close Price")
 
-    #draw calls strike
-    #p.circle(pandas_data_frame["Date"].tolist(), pandas_data_frame["Calls Strike"].tolist(), size=5, color="navy", alpha=0.5, legend="Calls Strike")
-    #p.circle(pandas_data_frame["Date"].tolist(), pandas_data_frame["Puts Strike"].tolist(), size=5, color="red", alpha=0.5, legend="Puts Strike")
+    #draw calls and puts strike
     p.circle('Date','Calls Strike', source=calls_price_source, size=5, color="navy",
              alpha=0.5, legend="Calls Strike Price")
     p.circle('Date','Puts Strike', source=puts_price_source, size=5, color="red",
