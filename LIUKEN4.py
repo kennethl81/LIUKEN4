@@ -16,11 +16,12 @@ from bs4 import BeautifulSoup
 from bokeh.plotting import figure, show
 from bokeh.models import HoverTool
 from bokeh.layouts import column
-
+from bokeh.transform import jitter
+from bokeh.models import ColumnDataSource
 from io import StringIO
+from datetime import datetime
 
-logging.propagate = False
-logging.getLogger().setLevel(logging.ERROR)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning) #urllib3 keeps warning about not using a certificate
 
 
 class TestMethods(unittest.TestCase):
@@ -159,43 +160,56 @@ def get_finance_yahoo_options(url):
 
 def generate_bokeh_chart(pandas_data_frame):
 
-    #test()
-    #print(pandas_data_frame)
-    #print(panda_data_frame.Close.values)
-    #print([pandas_data_frame['Date'].values])
     numlines = len(pandas_data_frame.columns)
 
-    #plot = figure(plot_width=800, plot_height=800, x_axis_type="datetime", tools='pan,box_zoom', title="Expedia Stock")
-    #plot.multi_line(xs=[pandas_data_frame['Date'].values], ys=pandas_data_frame.Close.values)
     pandas_data_frame['Date'] = pandas.to_datetime(pandas_data_frame['Date'])
+    dates = [str(datetime.strptime(str(i), "%Y-%m-%d %H:%M:%S").date()) for i in pandas_data_frame['Date']]
 
-    p = figure(width=500, height=500, x_axis_type="datetime", title="Expedia Stock")
+    open_price_source = ColumnDataSource(data={
+            'Date': pandas_data_frame['Date'],
+            'Open': pandas_data_frame['Open'],
+            'DateFormatted': dates,
+    })
 
-    p.multi_line([
-                  pandas_data_frame["Date"].tolist(),
-                  pandas_data_frame["Date"].tolist()
-                  #pandas_data_frame["Date"].tolist(),
-                  #pandas_data_frame["Date"].tolist()
-                ],
-                     [
-                      pandas_data_frame["Open"].tolist(),
-                      pandas_data_frame["Close"].tolist()
-                      #pandas_data_frame["Calls Strike"].tolist(),
-                      #pandas_data_frame["Puts Strike"].tolist()
-                      ],
-                 color=["firebrick", "navy", "green", "blue", "magenta"], line_width=1)
+    close_price_source = ColumnDataSource(data={
+            'Date': pandas_data_frame['Date'],
+            'Close': pandas_data_frame['Close'],
+            'DateFormatted': dates
+    })
 
-    #p2 = figure(width=500, height=500, x_axis_type="datetime", title="Expedia Stock Options")
-    p.circle([
-                  pandas_data_frame["Date"].tolist(),
-                  pandas_data_frame["Date"].tolist(),
-                ],
-                     [
-                     pandas_data_frame["Calls Strike"].tolist(),
-                     pandas_data_frame["Puts Strike"].tolist()],
-                    fill_color="red", size=8)
+    calls_price_source = ColumnDataSource(data={
+            'Date': pandas_data_frame['Date'],
+            'Calls Strike': pandas_data_frame['Calls Strike'],
+            'DateFormatted': dates
+    })
 
-    #show(column(p, p2))
+    puts_price_source = ColumnDataSource(data={
+            'Date': pandas_data_frame['Date'],
+            'Puts Strike': pandas_data_frame['Puts Strike'],
+            'DateFormatted': dates
+    })
+
+    hover = HoverTool(tooltips=[
+        ("price", "$y"),
+        ("date","@DateFormatted")
+        ]
+    )
+
+    p = figure(width=800, height=800,  x_axis_type="datetime", title="Expedia Stock", tools=["pan,wheel_zoom,box_zoom,reset", hover], toolbar_location="above")
+
+    p.xaxis.axis_label = 'Date'
+    p.yaxis.axis_label = 'Price'
+
+    p.line('Date', 'Open', source=open_price_source, color="green", line_width=2, legend="Open Price")
+    p.line('Date', 'Close', source=close_price_source, color="blue", line_width=2, legend="Close Price")
+
+    #draw calls strike
+    #p.circle(pandas_data_frame["Date"].tolist(), pandas_data_frame["Calls Strike"].tolist(), size=5, color="navy", alpha=0.5, legend="Calls Strike")
+    #p.circle(pandas_data_frame["Date"].tolist(), pandas_data_frame["Puts Strike"].tolist(), size=5, color="red", alpha=0.5, legend="Puts Strike")
+    p.circle('Date','Calls Strike', source=calls_price_source, size=5, color="navy",
+             alpha=0.5, legend="Calls Strike Price")
+    p.circle('Date','Puts Strike', source=puts_price_source, size=5, color="red",
+             alpha=0.5, legend="Puts Strike Price")
     show(p)
 
 def format_crumb_and_cookie_url(url, crumb, cookie):
